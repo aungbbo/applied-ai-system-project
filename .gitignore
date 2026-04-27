@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 .env
 chroma_db/
+rag_log.txt

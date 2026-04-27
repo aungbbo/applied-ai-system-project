@@ -187,7 +187,22 @@ Groq provides a free-tier LLM API with very fast inference (often under 2 second
 
 ## Testing Summary
 
-### What the unit tests cover (23 tests)
+The project uses three complementary reliability methods: automated unit tests, confidence scoring, and logging.
+
+### Running all tests
+
+```bash
+# Scheduling system tests (no API required)
+python -m pytest tests/test_pawpal.py -v
+
+# RAG retrieval tests (no API required — runs locally)
+python -m pytest tests/test_rag.py -v
+
+# All tests together
+python -m pytest tests/ -v
+```
+
+### Scheduling system tests — 23 tests, all passing
 
 | Test class | Tests | What it verifies |
 |---|---|---|
@@ -197,20 +212,56 @@ Groq provides a free-tier LLM API with very fast inference (often under 2 second
 | `TestRecurrence` | 6 | Daily/weekly tasks auto-renew; `as_needed` tasks stay done |
 | `TestConflictDetection` | 5 | Overlapping times flagged; adjacent times pass; three-way overlap produces exactly 3 warnings |
 
+### RAG retrieval tests — 7 tests, all passing
+
+Located in `tests/test_rag.py`. These tests verify the retrieval step is working correctly without calling the Groq API — making them fast, free, and reproducible.
+
+| Test | What it verifies |
+|---|---|
+| `test_feeding_question_retrieves_feeding_source` | Feeding question → retrieves `feeding_schedules.txt` |
+| `test_exercise_question_retrieves_exercise_source` | Exercise question → retrieves `exercise_guide.txt` |
+| `test_grooming_question_retrieves_grooming_source` | Grooming question → retrieves `grooming_frequency.txt` |
+| `test_retrieval_returns_correct_number_of_chunks` | Returns 1–3 chunks per query |
+| `test_confidence_scores_are_in_valid_range` | All scores are between 0.0 and 1.0 |
+| `test_top_confidence_score_is_reasonable` | Relevant questions score ≥ 0.30 |
+| `test_sources_are_nonempty_strings` | Source names are valid `.txt` filenames |
+
+### Confidence scoring
+
+Every answer in the UI displays a retrieval confidence score (0–100%) derived from the ChromaDB vector similarity distance. Scores are labelled 🟢 High (≥70%), 🟡 Medium (≥40%), or 🔴 Low (<40%). This gives users and reviewers a transparent signal of how well the retrieved context matched the question.
+
+Example from real usage:
+> *"how many times should i feed my small dog?"* — best match: **40%** 🟡, average: **23%**
+
+### Logging
+
+All queries, retrieval results, confidence scores, and errors are automatically written to `rag_log.txt`. Example log entries from real usage:
+
+```
+2026-04-26 21:03:03 | INFO | New question received: 'what should i feed my big dog?'
+2026-04-26 21:03:07 | INFO | Retrieved 3 chunks | sources: ['feeding_schedules.txt'] | scores: [0.21, 0.15, 0.0]
+2026-04-26 21:03:07 | INFO | Answer generated successfully (315 chars)
+
+2026-04-26 21:03:36 | INFO | New question received: 'how many times should i feed my small dog?'
+2026-04-26 21:03:36 | INFO | Retrieved 3 chunks | sources: ['feeding_schedules.txt'] | scores: [0.4, 0.28, 0.0]
+2026-04-26 21:03:36 | INFO | Answer generated successfully (149 chars)
+```
+
 ### What worked well
-- The scheduling core (sorting, conflict detection, greedy packing) is robust and fully tested.
-- The RAG pipeline correctly retrieves relevant chunks and declines out-of-scope questions.
-- Groq's `llama-3.1-8b-instant` produces clear, concise answers grounded in the retrieved context.
+- The scheduling core (sorting, conflict detection, greedy packing) is robust and fully covered by unit tests.
+- The RAG pipeline correctly retrieves the right source document for topic-specific questions in all 3 retrieval tests.
+- Groq's `llama-3.1-8b-instant` produces concise, grounded answers in under 2 seconds after the first run.
+- Confidence scoring makes it easy to spot when a question is outside the knowledge base scope.
 
 ### What didn't work / challenges
 - The original `llama3-8b-8192` Groq model was decommissioned mid-development and had to be updated to `llama-3.1-8b-instant`.
-- HuggingFace rate-limits unauthenticated model downloads, causing the first-run embedding download to stall without an `HF_TOKEN`.
+- HuggingFace rate-limits unauthenticated downloads, causing the first-run embedding model download to stall without an `HF_TOKEN`.
 - The RAG system has no memory across questions — each question is answered independently with no conversation history.
 
 ### Gaps remaining
 - No end-to-end UI tests for the Streamlit interface.
-- No unit tests for `rag_engine.py` (would require mocking ChromaDB and the Groq API).
 - Knowledge base does not yet cover cats, medical conditions, or enrichment activities.
+- Confidence scores for some questions are low (< 0.3), indicating the knowledge base needs more content to handle edge-case queries reliably.
 
 ---
 

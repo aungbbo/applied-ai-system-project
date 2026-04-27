@@ -300,6 +300,8 @@ if "rag_answer" not in st.session_state:
     st.session_state.rag_answer = None
 if "rag_sources" not in st.session_state:
     st.session_state.rag_sources = []
+if "rag_scores" not in st.session_state:
+    st.session_state.rag_scores = []
 
 with st.form("rag_form"):
     user_question = st.text_input(
@@ -314,9 +316,10 @@ if ask_btn:
     else:
         with st.spinner("PawPal is thinking…"):
             try:
-                answer, sources = rag_engine.query(user_question.strip())
+                answer, sources, scores = rag_engine.query(user_question.strip())
                 st.session_state.rag_answer = answer
                 st.session_state.rag_sources = sources
+                st.session_state.rag_scores = scores
             except EnvironmentError as e:
                 st.error(str(e))
             except Exception as e:
@@ -326,7 +329,17 @@ if st.session_state.rag_answer:
     st.markdown("### 💬 PawPal says")
     st.success(st.session_state.rag_answer)
 
+    scores = st.session_state.rag_scores
+    if scores:
+        avg_score = sum(scores) / len(scores)
+        top_score = max(scores)
+        st.caption(
+            f"Retrieval confidence — best match: **{top_score:.0%}** | "
+            f"average: **{avg_score:.0%}** "
+            f"({'🟢 High' if top_score >= 0.7 else '🟡 Medium' if top_score >= 0.4 else '🔴 Low'})"
+        )
+
     if st.session_state.rag_sources:
         with st.expander("📄 Sources used"):
-            for src in st.session_state.rag_sources:
-                st.markdown(f"- `{src}`")
+            for src, score in zip(st.session_state.rag_sources, st.session_state.rag_scores):
+                st.markdown(f"- `{src}` — confidence: **{score:.0%}**")
