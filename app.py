@@ -1,5 +1,6 @@
 import streamlit as st
 
+import rag_engine
 from pawpal_system import Owner, Pet, Task, Scheduler
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
@@ -285,3 +286,47 @@ if st.session_state.last_schedule:
         scheduler.mark_scheduled_complete()
         st.session_state.last_schedule = None
         st.rerun()
+
+st.divider()
+
+# ---------------------------------------------------------------------------
+# 6. Ask PawPal — RAG-powered pet care Q&A
+# ---------------------------------------------------------------------------
+
+st.subheader("6 · Ask PawPal 🐾")
+st.caption("Ask a dog care question and get an answer grounded in our pet care knowledge base.")
+
+if "rag_answer" not in st.session_state:
+    st.session_state.rag_answer = None
+if "rag_sources" not in st.session_state:
+    st.session_state.rag_sources = []
+
+with st.form("rag_form"):
+    user_question = st.text_input(
+        "Your question",
+        placeholder="e.g. How often should I feed my large dog?",
+    )
+    ask_btn = st.form_submit_button("Ask PawPal")
+
+if ask_btn:
+    if not user_question.strip():
+        st.warning("Please enter a question first.")
+    else:
+        with st.spinner("PawPal is thinking…"):
+            try:
+                answer, sources = rag_engine.query(user_question.strip())
+                st.session_state.rag_answer = answer
+                st.session_state.rag_sources = sources
+            except EnvironmentError as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"Something went wrong: {e}")
+
+if st.session_state.rag_answer:
+    st.markdown("### 💬 PawPal says")
+    st.success(st.session_state.rag_answer)
+
+    if st.session_state.rag_sources:
+        with st.expander("📄 Sources used"):
+            for src in st.session_state.rag_sources:
+                st.markdown(f"- `{src}`")

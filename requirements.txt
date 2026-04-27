@@ -1,2 +1,6 @@
 streamlit>=1.30
 pytest>=7.0
+groq>=0.9
+chromadb>=0.4
+python-dotenv>=1.0
+sentence-transformers>=3.0
